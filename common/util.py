@@ -7,6 +7,7 @@ Attributes:
     preprocess (function): コーパスの前処理を行う
     create_co_matrix (function): コーパスから共起行列を作成する
     cos_similarity (function): コサイン類似度を計算する
+    most_similar (function): 類似単語のランキング表示
 """
 import sys
 
@@ -94,8 +95,8 @@ def preprocess(text):
         dict: 単語IDから単語へのディクショナリ
     """
     text = text.lower()  # 小文字化
-    text = text.replace('.', ' .')  # .を単語として扱うため、ピリオドの前にスペースを挿入
-    words = text.split(' ')  # スペースで単語を分割
+    text = text.replace(".", " .")  # .を単語として扱うため、ピリオドの前にスペースを挿入
+    words = text.split(" ")  # スペースで単語を分割
 
     # 単語IDの付与
     word_to_id = {}
@@ -153,8 +154,8 @@ def cos_similarity(x, y, eps=1e-8):
     Returns:
         float: コサイン類似度
     """
-    nx = x / (np.sqrt(np.sum(x ** 2)) + eps)  # xの正規化
-    ny = y / (np.sqrt(np.sum(y ** 2)) + eps)  # yの正規化
+    nx = x / (np.sqrt(np.sum(x**2)) + eps)  # xの正規化
+    ny = y / (np.sqrt(np.sum(y**2)) + eps)  # yの正規化
     return np.dot(nx, ny)
 
 
@@ -170,10 +171,10 @@ def most_similar(query, word_to_id, id_to_word, word_matrix, top=5):
     """
     # クエリの単語ベクトルを取り出す
     if query not in word_to_id:  # 単語がコーパスにないとき
-        print('%s is not found' % query)
+        print("%s is not found" % query)
         return
 
-    print('\n[query] ' + query)
+    print("\n[query] " + query)
     query_id = word_to_id[query]
     query_vec = word_matrix[query_id]
 
@@ -188,8 +189,39 @@ def most_similar(query, word_to_id, id_to_word, word_matrix, top=5):
     for i in (-1 * similarity).argsort():  # コサイン類似度が大きい順に並び替え(iはそのインデックスを示す)
         if id_to_word[i] == query:
             continue
-        print(' %s: %s' % (id_to_word[i], similarity[i]))
+        print(" %s: %s" % (id_to_word[i], similarity[i]))
 
         count += 1
         if count >= top:
             return
+
+
+def ppmi(co_matrix, verbose=False, eps=1e-8):
+    """PPMI（正の相互情報量）を求める
+
+    Args:
+        co_matrix (ndarray): 共起行列
+        verbose (bool, optional): 進捗表示するかどうか
+        eps (float, optional): 0除算を防ぐための微小値
+
+    Returns:
+        ndarray: PPMI行列
+    """
+    ppmi_matrix = np.zeros_like(co_matrix, dtype=np.float32)
+    word_num = np.sum(co_matrix)
+    appear_sum = np.sum(co_matrix, axis=0)
+    total_num = co_matrix.shape[0] * co_matrix.shape[1]
+    cnt = 0
+
+    for i in range(co_matrix.shape[0]):
+        for j in range(co_matrix.shape[1]):
+            pmi = np.log2(
+                co_matrix[i, j] * word_num / (appear_sum[j] * appear_sum[i]) + eps
+            )
+            ppmi_matrix[i, j] = max(0, pmi)
+
+            if verbose:
+                cnt += 1
+                if cnt % (total_num // 100 + 1) == 0:
+                    print("%.1f%% done" % (100 * cnt / total_num))
+    return ppmi_matrix

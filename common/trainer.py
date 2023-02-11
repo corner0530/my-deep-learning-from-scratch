@@ -8,9 +8,12 @@ import sys
 
 sys.path.append(".")  # 親ディレクトリのファイルをインポートするための設定
 import time
-import numpy
+
 import matplotlib.pyplot as plt
+import numpy
+
 from common.np import *  # import numpy as np
+
 # from common.util import clip_grads
 
 
@@ -24,6 +27,7 @@ class Trainer:
         eval_interval (int): 検証を行う間隔
         current_epoch (int): 現在のエポック数
     """
+
     def __init__(self, model, optimizer):
         """コンストラクタ
 
@@ -37,7 +41,9 @@ class Trainer:
         self.eval_interval = None
         self.current_epoch = 0
 
-    def fit(self, data, labels, max_epoch=10, batch_size=32, max_grad=None, eval_interval=20):
+    def fit(
+        self, data, labels, max_epoch=10, batch_size=32, max_grad=None, eval_interval=20
+    ):
         """学習を行う
 
         Args:
@@ -71,9 +77,9 @@ class Trainer:
                 loss = model.forward(batch_data, batch_labels)
                 model.backward()
                 params, grads = model.params, model.grads
-                # params, grads = remove_duplicate(model.params, model.grads)  # 共有された重みを1つに集約
+                params, grads = remove_duplicate(model.params, model.grads)  # 共有された重みを1つに集約
                 # if max_grad is not None:
-                    # clip_grads(model.grads, max_grad)
+                # clip_grads(model.grads, max_grad)
                 optimizer.update(params, grads)
 
                 total_loss += loss
@@ -85,7 +91,13 @@ class Trainer:
                     elapsed_time = time.time() - start_time
                     print(
                         "| epoch %d | iter %d / %d | time %d[s] | loss %.2f"
-                        % (self.current_epoch + 1, iters + 1, max_iters, elapsed_time, avg_loss)
+                        % (
+                            self.current_epoch + 1,
+                            iters + 1,
+                            max_iters,
+                            elapsed_time,
+                            avg_loss,
+                        )
                     )
                     self.loss_list.append(float(avg_loss))
                     total_loss, loss_count = 0, 0
@@ -101,7 +113,55 @@ class Trainer:
         x = numpy.arange(len(self.loss_list))
         if ylim is not None:
             plt.ylim(*ylim)
-        plt.plot(x, self.loss_list, label='train')
-        plt.xlabel('iterations (x' + str(self.eval_interval) + ')')
-        plt.ylabel('loss')
+        plt.plot(x, self.loss_list, label="train")
+        plt.xlabel("iterations (x" + str(self.eval_interval) + ")")
+        plt.ylabel("loss")
         plt.show()
+
+
+def remove_duplicate(params, grads):
+    """重み・勾配の重複を削除する
+
+    Args:
+        params (list): 重み
+        grads (list): 勾配
+
+    Returns:
+        list: 重み
+        list: 勾配
+    """
+    params, grads = params[:], grads[:]  # copy list
+
+    while True:
+        find_flg = False
+        params_len = len(params)
+
+        for i in range(0, params_len - 1):
+            for j in range(i + 1, params_len):
+                # 重みを共有する場合
+                if params[i] is params[j]:
+                    grads[i] += grads[j]  # 勾配を加算する
+                    find_flg = True
+                    params.pop(j)  # 重複していた重み・勾配を削除する
+                    grads.pop(j)
+                # 転置行列として重みを共有する場合（weight tying）
+                elif (
+                    params[i].ndim == 2
+                    and params[j].ndim == 2
+                    and params[i].T.shape == params[j].shape
+                    and np.all(params[i].T == params[j])
+                ):
+                    grads[i] += grads[j].T
+                    find_flg = True
+                    params.pop(j)
+                    grads.pop(j)
+
+                if find_flg:
+                    break
+            if find_flg:
+                break
+
+        if not find_flg:
+            break
+
+    return params, grads

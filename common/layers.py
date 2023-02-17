@@ -14,8 +14,8 @@ Attributes:
 """
 import numpy as np
 
-from common.functions import *
-from common.util import *
+from common.functions import cross_entropy_error, sigmoid, softmax
+from common.util import col2im, im2col
 
 
 class Sigmoid:
@@ -514,11 +514,15 @@ class Convolution:
 
         # 重みの勾配
         dweight = np.dot(self.col.T, dout)
-        self.dweight = dweight.transpose(1, 0).reshape(filter_num, filter_channel, filter_height, filter_width)
+        self.dweight = dweight.transpose(1, 0).reshape(
+            filter_num, filter_channel, filter_height, filter_width
+        )
 
         # 入力値の勾配
         dcol = np.dot(dout, self.col_weight.T)
-        din = col2im(dcol, self.inputs.shape, filter_height, filter_width, self.stride, self.pad)
+        din = col2im(
+            dcol, self.inputs.shape, filter_height, filter_width, self.stride, self.pad
+        )
 
         return din
 
@@ -583,7 +587,9 @@ class Pooling:
 
         # 最大値を取得
         out = np.max(col, axis=1)
-        out = out.reshape(img_num, out_height, out_width, img_channel).transpose(0, 3, 1, 2)
+        out = out.reshape(img_num, out_height, out_width, img_channel).transpose(
+            0, 3, 1, 2
+        )
 
         self.inputs = inputs
         self.arg_max = arg_max
@@ -607,7 +613,14 @@ class Pooling:
         dmax = dmax.reshape(dout.shape + (pool_size,))
 
         dcol = dmax.reshape(dmax.shape[0] * dmax.shape[1] * dmax.shape[2], -1)
-        din = col2im(dcol, self.inputs.shape, self.pool_height, self.pool_width, self.stride, self.pad)
+        din = col2im(
+            dcol,
+            self.inputs.shape,
+            self.pool_height,
+            self.pool_width,
+            self.stride,
+            self.pad,
+        )
 
         return din
 
@@ -657,4 +670,109 @@ class MatMul:
         din = np.dot(dout, weight.T)
         dweight = np.dot(self.inputs.T, dout)
         self.grads[0][...] = dweight  # 配列のメモリ位置を固定したうえで上書き(deep copy)
+        return din
+
+
+class Embedding:
+    """単語の分散表現を格納するレイヤ
+
+    Attributes:
+        params (list): パラメータ
+        grads (list): 勾配
+        idx (ndarray): 抽出する行のインデックス(単語ID)の配列
+    """
+
+    def __init__(self, weight):
+        """コンストラクタ
+
+        Args:
+            weight (ndarray): 重み
+        """
+        self.params = [weight]
+        self.grads = [np.zeros_like(weight)]
+        self.idx = None  # 抽出する行のインデックス(単語ID)の配列
+
+    def forward(self, idx):
+        """順伝播
+
+        Args:
+            idx (ndarray): 抽出する行のインデックス(単語ID)の配列
+
+        Returns:
+            ndarray: 抽出した単語の分散表現
+        """
+        (weight,) = self.params
+        self.idx = idx
+        out = weight[idx]  # 特定の行を抜き出す
+        return out
+
+    def backward(self, dout):
+        """逆伝播
+
+        Args:
+            dout (ndarray): 上流から伝わってきた勾配
+
+        Returns:
+            ndarray: 下流に伝える勾配
+        """
+        dweight = self.grads
+        dweight[...] = 0  # 形状を保ったまま0に
+
+        np.add.at(dweight, self.idx, dout)  # インデックスが重複しているときは加算するため
+        # または
+        # for i, word_id in enumerate(self.idx):
+        #     dweight[word_id] += dout[i]
+
+        return None
+
+
+class SigmoidWithLoss:
+    """シグモイド関数と交差エントロピー誤差を合わせたレイヤ
+
+    Attributes:
+        params (list): パラメータ
+        grads (list): 勾配
+        loss (float): 損失関数の値
+        sigmoid_out (ndarray): シグモイド関数の出力
+        labels (ndarray): 教師データ
+    """
+
+    def __init__(self):
+        """コンストラクタ"""
+        self.params = []
+        self.grads = []
+        self.loss = None
+        self.sigmoid_out = None  # sigmoidの出力
+        self.labels = None  # 教師データ
+
+    def forward(self, inputs, labels):
+        """順伝播
+
+        Args:
+            inputs (ndarray): 入力値
+            labels (ndarray): 教師データ
+
+        Returns:
+            float: 損失関数の値
+        """
+        self.labels = labels
+        self.sigmoid_out = sigmoid(inputs)
+
+        self.loss = cross_entropy_error(
+            np.c_[1 - self.sigmoid_out, self.sigmoid_out], self.labels
+        )  # シグモイドの出力と1からそれを引いたもの横方向にを結合
+        return self.loss
+
+    def backward(self, dout=1):
+        """逆伝播
+
+        Args:
+            dout (int, optional): 上流から伝わってきた勾配
+
+        Returns:
+            ndarray: 下流に伝える勾配
+        """
+        batch_size = self.labels.shape[0]
+
+        din = (self.sigmoid_out - self.labels) * dout / batch_size
         return din

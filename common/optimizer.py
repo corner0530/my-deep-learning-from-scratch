@@ -1,4 +1,3 @@
-# coding: utf-8
 """最適化手法の実装
 
 Attributes:
@@ -7,10 +6,11 @@ Attributes:
     Nesterov (class): Nesterov's Accelerated Gradient
     AdaGrad (class): AdaGrad
     RMSprop (class): RMSprop
+    AdaDelta (class): AdaDelta
     Adam (class): Adam
 """
+from common.np import np  # import numpy as np
 
-import numpy as np
 
 class SGD:
     """確率的勾配降下法
@@ -18,6 +18,7 @@ class SGD:
     Attributes:
         lr (float): 学習率
     """
+
     def __init__(self, lr=0.01):
         """コンストラクタ
 
@@ -45,6 +46,7 @@ class Momentum:
         momentum (float): 慣性項のスケール
         v (list): 速度
     """
+
     def __init__(self, lr=0.01, momentum=0.9):
         """コンストラクタ
 
@@ -81,6 +83,7 @@ class Nesterov:
         momentum (float): 慣性項のスケール
         v (list): 速度
     """
+
     def __init__(self, lr=0.01, momentum=0.9):
         """コンストラクタ
 
@@ -106,7 +109,10 @@ class Nesterov:
 
         for i in range(len(params)):
             self.v[i] = self.momentum * self.v[i] - self.lr * grads[i]
-            params[i] += self.momentum * self.momentum * self.v[i] - (1 + self.momentum) * self.lr * grads[i]
+            params[i] += (
+                self.momentum * self.momentum * self.v[i]
+                - (1 + self.momentum) * self.lr * grads[i]
+            )
 
 
 class AdaGrad:
@@ -116,6 +122,7 @@ class AdaGrad:
         lr (float): 学習率
         h (list): 勾配の二乗和
     """
+
     def __init__(self, lr=0.01):
         """コンストラクタ
 
@@ -150,6 +157,7 @@ class RMSprop:
         decay_rate (float): 減衰率
         h (list): 勾配の二乗和
     """
+
     def __init__(self, lr=0.01, decay_rate=0.99):
         """コンストラクタ
 
@@ -174,7 +182,10 @@ class RMSprop:
                 self.h.append(np.zeros_like(param))
 
         for i in range(len(params)):
-            self.h[i] = self.decay_rate * self.h[i] + (1 - self.decay_rate) * grads[i] * grads[i]
+            self.h[i] = (
+                self.decay_rate * self.h[i]
+                + (1 - self.decay_rate) * grads[i] * grads[i]
+            )
             params[i] -= self.lr * grads[i] / (np.sqrt(self.h[i]) + 1e-7)
 
 
@@ -187,6 +198,7 @@ class AdaDelta:
         h (list): 勾配の二乗和
         delta (list): 更新量の二乗和
     """
+
     def __init__(self, decay_rate=0.95, eps=1e-6):
         """コンストラクタ
 
@@ -214,9 +226,18 @@ class AdaDelta:
                 self.delta.append(np.zeros_like(param))
 
         for i in range(len(params)):
-            self.h[i] = self.decay_rate * self.h[i] + (1 - self.decay_rate) * grads[i] * grads[i]
-            delta = - grads[i] * np.sqrt(self.delta[i] + self.eps) / np.sqrt(self.h[i] + self.eps)
-            self.delta[i] = self.decay_rate * self.delta[i] + (1 - self.decay_rate) * delta * delta
+            self.h[i] = (
+                self.decay_rate * self.h[i]
+                + (1 - self.decay_rate) * grads[i] * grads[i]
+            )
+            delta = (
+                -grads[i]
+                * np.sqrt(self.delta[i] + self.eps)
+                / np.sqrt(self.h[i] + self.eps)
+            )
+            self.delta[i] = (
+                self.decay_rate * self.delta[i] + (1 - self.decay_rate) * delta * delta
+            )
             params[i] += delta
 
 
@@ -231,6 +252,7 @@ class Adam:
         m (list): 1次モーメント
         v (list): 2次モーメント
     """
+
     def __init__(self, lr=0.001, beta1=0.9, beta2=0.999):
         """コンストラクタ
 
@@ -260,9 +282,15 @@ class Adam:
                 self.v.append(np.zeros_like(param))
 
         self.iter += 1
-        lr_t = self.lr * np.sqrt(1.0 - self.beta2 ** self.iter) / (1.0 - self.beta1 ** self.iter)
+        lr_t = (
+            self.lr
+            * np.sqrt(1.0 - self.beta2**self.iter)
+            / (1.0 - self.beta1**self.iter)
+        )
 
         for i in range(len(params)):
             self.m[i] = self.beta1 * self.m[i] + (1.0 - self.beta1) * grads[i]
-            self.v[i] = self.beta2 * self.v[i] + (1.0 - self.beta2) * grads[i] * grads[i]
+            self.v[i] = (
+                self.beta2 * self.v[i] + (1.0 - self.beta2) * grads[i] * grads[i]
+            )
             params[i] -= lr_t * self.m[i] / (np.sqrt(self.v[i]) + 1e-7)

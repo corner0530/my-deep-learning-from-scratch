@@ -6,6 +6,30 @@
 
 ## 実装上の注意
 
+### 全般
+
+このディレクトリのファイルを読み込むため，最初に以下を実行してインストールする
+
+- conda の場合
+  ```bash
+  conda develop .
+  ```
+- pip の場合
+  ```bash
+  pip install -e .
+  ```
+
+アンインストールする場合は
+
+- conda の場合
+  ```bash
+  conda develop -u .
+  ```
+- pip の場合
+  ```bash
+  pip uninstall .
+  ```
+
 ### common/layers
 
 - 全てのレイヤはメソッドとして`forward()`と`backward()`を持つ
@@ -20,11 +44,14 @@
 
 - GPU を使用するときは`GPU`を`True`に
 
-## 改善点？
-
-- 重みは辞書で格納した方が良い？
-
 ## 参考にしたサイトなど
+
+### 本家
 
 - [『ゼロから作る Deep Learning』のソースコード](https://github.com/oreilly-japan/deep-learning-from-scratch)
 - [『ゼロから作る Deep Learning ❷ ―自然言語処理編』のソースコード](https://github.com/oreilly-japan/deep-learning-from-scratch-2)
+
+### モジュール関連
+
+- [sys.path.append() を使わないでください - Qiita](https://qiita.com/siida36/items/b171922546e65b868679)
+- [How to install my own python module (package) via conda and watch its changes - Stack Overflow](https://stackoverflow.com/questions/49474575/how-to-install-my-own-python-module-package-via-conda-and-watch-its-changes)

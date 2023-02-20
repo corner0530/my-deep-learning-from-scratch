@@ -1,9 +1,3 @@
-# coding: utf-8
-
-import sys
-
-sys.path.append(".")
-
 import numpy as np
 
 from common.util import create_co_matrix, most_similar, ppmi

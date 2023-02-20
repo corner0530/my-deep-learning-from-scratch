@@ -1,6 +1,3 @@
-import sys
-
-sys.path.append(".")
 from simple_cbow import SimpleCBOW
 
 from common.optimizer import Adam

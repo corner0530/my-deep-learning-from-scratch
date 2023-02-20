@@ -1,4 +1,3 @@
-# coding: utf-8
 """関数の実装
 
 Attributes:
@@ -7,7 +6,7 @@ Attributes:
     softmax (function): ソフトマックス関数
     cross_entropy_error (function): クロスエントロピー誤差
 """
-import numpy as np
+from common.np import np  # import numpy as np
 
 
 def sigmoid(x):

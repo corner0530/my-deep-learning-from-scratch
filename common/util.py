@@ -1,4 +1,3 @@
-# coding: utf-8
 """ユーティリティ関数の実装
 
 Attributes:
@@ -8,11 +7,11 @@ Attributes:
     create_co_matrix (function): コーパスから共起行列を作成する
     cos_similarity (function): コサイン類似度を計算する
     most_similar (function): 類似単語のランキング表示
+    ppmi (function): PPMI行列を作成する
+    create_contexts_target (function): コンテキストとターゲットの作成
+    convert_one_hot (function): one-hot表現への変換
 """
-import sys
-
-sys.path.append(".")  # 親ディレクトリのファイルをインポートするための設定
-from common.np import *  # import numpy as np
+from common.np import np  # import numpy as np
 
 
 def im2col(input_data, filter_h, filter_w, stride=1, pad=0):

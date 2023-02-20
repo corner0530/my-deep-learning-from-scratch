@@ -1,7 +1,6 @@
-# coding: utf-8
-import numpy as np
 
 from common.layers import Embedding
+from common.np import GPU, np  # import numpy as np
 
 
 class EmbeddingDot:
@@ -13,6 +12,7 @@ class EmbeddingDot:
         grads (list): 勾配
         cache (tuple): 順伝播時の中間データ
     """
+
     def __init__(self, weight):
         """コンストラクタ
 

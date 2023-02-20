@@ -1,4 +1,3 @@
-# coding: utf-8
 """レイヤの実装
 
 Attributes:
@@ -11,10 +10,11 @@ Attributes:
     Convolution (class): Convolutionレイヤ
     Pooling (class): Poolingレイヤ
     MatMul (class): MatMulレイヤ
+    Embedding (class): Embeddingレイヤ
+    SigmoidWithLoss (class): Sigmoid-with-Lossレイヤ
 """
-import numpy as np
-
 from common.functions import cross_entropy_error, sigmoid, softmax
+from common.np import GPU, np  # import numpy as np
 from common.util import col2im, im2col
 
 
@@ -718,7 +718,10 @@ class Embedding:
         dweight = self.grads
         dweight[...] = 0  # 形状を保ったまま0に
 
-        np.add.at(dweight, self.idx, dout)  # インデックスが重複しているときは加算するため
+        if GPU:
+            np.scatter_add(dweight, self.idx, dout)
+        else:
+            np.add.at(dweight, self.idx, dout)  # インデックスが重複しているときは加算するため
         # または
         # for i, word_id in enumerate(self.idx):
         #     dweight[word_id] += dout[i]

@@ -1,18 +1,15 @@
-# coding: utf-8
 """学習を行うクラス
 
 Attributes:
     Trainer (class): 学習を行うクラス
+    remove_duplicate (function): 重み・勾配の重複を削除する関数
 """
-import sys
-
-sys.path.append(".")  # 親ディレクトリのファイルをインポートするための設定
 import time
 
 import matplotlib.pyplot as plt
 import numpy
 
-from common.np import *  # import numpy as np
+from common.np import np  # import numpy as np
 
 # from common.util import clip_grads
 
@@ -77,7 +74,9 @@ class Trainer:
                 loss = model.forward(batch_data, batch_labels)
                 model.backward()
                 params, grads = model.params, model.grads
-                params, grads = remove_duplicate(model.params, model.grads)  # 共有された重みを1つに集約
+                params, grads = remove_duplicate(
+                    model.params, model.grads
+                )  # 共有された重みを1つに集約
                 # if max_grad is not None:
                 # clip_grads(model.grads, max_grad)
                 optimizer.update(params, grads)

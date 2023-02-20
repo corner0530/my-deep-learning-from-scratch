@@ -1,14 +1,6 @@
-# coding: utf-8
-import os
-import sys
-
-sys.path.append(os.pardir)  # 親ディレクトリのファイルをインポートするための設定
-import pickle
-from collections import OrderedDict
-
 import numpy as np
 
-from common.layers import *
+from common.layers import Affine, Convolution, Pooling, Relu, SoftmaxWithLoss
 
 
 class SimpleConvNet:

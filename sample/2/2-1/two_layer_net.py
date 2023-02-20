@@ -1,7 +1,3 @@
-# coding: utf-8
-import sys
-
-sys.path.append(".")  # 親ディレクトリのファイルをインポートするための設定
 import numpy as np
 
 from common.layers import Affine, Sigmoid, SoftmaxWithLoss
@@ -23,7 +19,7 @@ class TwoLayerNet:
         self.params = []
         self.grads = []
         for layer in self.layers:
-            self.params += layer.params # + でリストの結合
+            self.params += layer.params  # + でリストの結合
             self.grads += layer.grads
 
     def predict(self, inputs):

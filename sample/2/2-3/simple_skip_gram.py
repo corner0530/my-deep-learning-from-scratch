@@ -23,7 +23,8 @@ class SimpleSkipGram:
 
         # 全ての重みと勾配をリストにまとめる
         layers = [self.in_layer, self.out_layer]
-        self.params, self.grads = [], []
+        self.params = []
+        self.grads = []
         for layer in layers:
             self.params += layer.params
             self.grads += layer.grads

@@ -196,8 +196,17 @@ class NegativeSamplingLoss:
         return loss
 
     def backward(self, dout=1):
+        """逆伝播
+
+        Args:
+            dout (int, optional): 上流から伝わってきた勾配
+
+        Returns:
+            ndarray: 下流に伝える勾配
+        """
         dhidden = 0
         for layer0, layer1 in zip(self.loss_layers, self.embed_dot_layers):
+            # 各レイヤの逆伝播を足し合わせる
             dscore = layer0.backward(dout)
             dhidden += layer1.backward(dscore)
 

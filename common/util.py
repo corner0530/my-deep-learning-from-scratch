@@ -10,6 +10,10 @@ Attributes:
     ppmi (function): PPMI行列を作成する
     create_contexts_target (function): コンテキストとターゲットの作成
     convert_one_hot (function): one-hot表現への変換
+    to_cpu (function): CuPyのデータをNumPyに変換
+    to_gpu (function): NumPyのデータをCuPyに変換
+    analogy (function): 類推問題を解く
+    normalize (function): 単語ベクトルの正規化
 """
 from common.np import np  # import numpy as np
 
@@ -273,3 +277,96 @@ def convert_one_hot(corpus, vocab_size):
                 one_hot[idx0, idx1, word_id] = 1
 
     return one_hot
+
+
+def to_cpu(x):
+    """cupy.ndarrayをnumpy.ndarrayに変換する
+
+    Args:
+        x (cupy.ndarray): 変換対象の配列
+
+    Returns:
+        numpy.ndarray: 変換後の配列
+    """
+    import numpy
+
+    if type(x) == numpy.ndarray:
+        return x
+    return np.asnumpy(x)
+
+
+def to_gpu(x):
+    """numpy.ndarrayをcupy.ndarrayに変換する
+
+    Args:
+        x (numpy.ndarray): 変換対象の配列
+
+    Returns:
+        cupy.ndarray: 変換後の配列
+    """
+    import cupy
+
+    if type(x) == cupy.ndarray:
+        return x
+    return cupy.asarray(x)
+
+
+def analogy(a, b, c, word_to_id, id_to_word, word_matrix, top=5, answer=None):
+    """類推問題を解く
+
+    a:b = c:?という形式の類推問題を解く(ベクトルの加減算で解く)
+
+    Args:
+        a (str): 単語
+        b (str): 単語
+        c (str): 単語
+        word_to_id (dict): 単語から単語IDへのディクショナリ
+        id_to_word (dict): 単語IDから単語へのディクショナリ
+        word_matrix (ndarray): 単語ベクトルを並べた行列
+        top (int, optional): 上位何位まで表示するか
+        answer (str, optional): 正解の単語
+    """
+    for word in (a, b, c):
+        if word not in word_to_id:
+            print("{} is not found.".format(word))
+            return
+    print("\n[analogy] {}:{} = {}:?".format(a, b, c))
+    a_vec = word_matrix[word_to_id[a]]
+    b_vec = word_matrix[word_to_id[b]]
+    c_vec = word_matrix[word_to_id[c]]
+    query_vec = normalize(b_vec - a_vec + c_vec)
+
+    similarity = np.dot(word_matrix, query_vec)
+
+    if answer is not None:
+        print(
+            "==> {}: {}".format(
+                answer, np.dot(word_matrix[word_to_id[answer]], query_vec)
+            )
+        )
+
+    count = 0
+    for i in (-1 * similarity).argsort():
+        if np.isnan(similarity[i]):
+            continue
+        if id_to_word[i] in (a, b, c):
+            continue
+        print(" {}: {}".format(id_to_word[i], similarity[i]))
+
+        count += 1
+        if count >= top:
+            return
+
+
+def normalize(x):
+    """ベクトルの正規化
+
+    Args:
+        x (ndarray): 入力ベクトル
+
+    Returns:
+        ndarray: 正規化されたベクトル
+    """
+    s = np.sqrt(np.sum(x * x, axis=-1))
+    x /= s.flatten()
+    return x

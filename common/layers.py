@@ -715,7 +715,7 @@ class Embedding:
         Returns:
             ndarray: 下流に伝える勾配
         """
-        dweight = self.grads
+        dweight = self.grads[0]
         dweight[...] = 0  # 形状を保ったまま0に
 
         if GPU:

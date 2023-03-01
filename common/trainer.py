@@ -2,6 +2,7 @@
 
 Attributes:
     Trainer (class): 学習を行うクラス
+    RnnlmTrainer (class): RNNLMの学習を行うクラス
     remove_duplicate (function): 重み・勾配の重複を削除する関数
 """
 import time
@@ -10,8 +11,7 @@ import matplotlib.pyplot as plt
 import numpy
 
 from common.np import np  # import numpy as np
-
-# from common.util import clip_grads
+from common.util import clip_grads
 
 
 class Trainer:
@@ -77,8 +77,8 @@ class Trainer:
                 params, grads = remove_duplicate(
                     model.params, model.grads
                 )  # 共有された重みを1つに集約
-                # if max_grad is not None:
-                # clip_grads(model.grads, max_grad)
+                if max_grad is not None:
+                    clip_grads(model.grads, max_grad)
                 optimizer.update(params, grads)
 
                 total_loss += loss
@@ -213,8 +213,8 @@ class RnnlmTrainer:
                 loss = model.forward(batch_input, batch_label)
                 model.backward()
                 params, grads = remove_duplicate(model.params, model.grads)
-                # if max_grad is not None:
-                # clip_grads(grads,max_grad)
+                if max_grad is not None:
+                    clip_grads(grads, max_grad)
                 optimizer.update(params, grads)
                 total_loss += loss
                 loss_count += 1

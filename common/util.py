@@ -14,6 +14,7 @@ Attributes:
     to_gpu (function): NumPyのデータをCuPyに変換
     analogy (function): 類推問題を解く
     normalize (function): 単語ベクトルの正規化
+    clip_grads (function): 勾配のクリッピング
 """
 from common.np import np  # import numpy as np
 
@@ -370,3 +371,21 @@ def normalize(x):
     s = np.sqrt(np.sum(x * x, axis=-1))
     x /= s.flatten()
     return x
+
+
+def clip_grads(grads, max_norm):
+    """勾配クリッピング
+
+    Args:
+        grads (list): 勾配のリスト
+        max_norm (float): クリッピングする閾値
+    """
+    total_norm = 0
+    for grad in grads:
+        total_norm += np.sum(grad * grad)
+    total_norm = np.sqrt(total_norm)
+
+    rate = max_norm / (total_norm + 1e-6)
+    if rate < 1:
+        for grad in grads:
+            grad *= rate

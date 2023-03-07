@@ -182,17 +182,17 @@ class Dropout:
         self.mask = None
         self.dropout_ratio = dropout_ratio
 
-    def forward(self, inputs, is_train=True):
+    def forward(self, inputs, train_flg=True):
         """順伝播
 
         Args:
             inputs (ndarray): 入力値
-            is_train (bool, optional): 学習時はTrue. Defaults to True.
+            train_flg (bool, optional): 学習時はTrue. Defaults to True.
 
         Returns:
             ndarray: 出力値
         """
-        if is_train:
+        if train_flg:
             self.mask = np.random.rand(*inputs.shape) > self.dropout_ratio
             out = inputs * self.mask
         else:
@@ -260,12 +260,12 @@ class BatchNormalization:
         self.dgamma = None
         self.dbeta = None
 
-    def forward(self, inputs, is_train=True):
+    def forward(self, inputs, train_flg=True):
         """順伝播
 
         Args:
             inputs (ndarray): 入力値
-            is_train (bool, optional): 学習時はTrue
+            train_flg (bool, optional): 学習時はTrue
 
         Returns:
             ndarray: 出力値
@@ -276,16 +276,16 @@ class BatchNormalization:
             input_num = inputs.shape[0]
             inputs = inputs.reshape(input_num, -1)
 
-        out = self.__forward(inputs, is_train)
+        out = self.__forward(inputs, train_flg)
 
         return out.reshape(*self.input_shape)
 
-    def __forward(self, inputs, is_train):
+    def __forward(self, inputs, train_flg):
         """順伝播
 
         Args:
             inputs (ndarray): 入力値(2次元)
-            is_train (bool): 学習時はTrue
+            train_flg (bool): 学習時はTrue
 
         Returns:
             ndarray: 出力値(2次元)
@@ -295,7 +295,7 @@ class BatchNormalization:
             self.running_mean = np.zeros(dim)
             self.running_var = np.zeros(dim)
 
-        if is_train:
+        if train_flg:
             # 学習時は正規化
             mu = np.mean(inputs, axis=0)
             xc = inputs - mu

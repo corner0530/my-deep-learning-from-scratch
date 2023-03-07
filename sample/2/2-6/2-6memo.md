@@ -10,14 +10,14 @@
   - 隠れ状態$\bm{h}_t$は記憶セル$\bm{c}_t$を用いて$\bm{h}_t=\tanh\left(\bm{c}_t\right)$
 - ゲート: 開き具合をコントロールする重みパラメータがあり，sigmoid 関数を用いて開き具合を求める
   - **output ゲート**: $\tanh(c_t)$の各要素に対してそれらが隠れ状態としてどれだけ重要か(次へ何%だけ通すか)を調整するゲート
-  出力$\bm{o}$は
+    出力$\bm{o}$は
     $$
     \bm{o}=\sigma\left(\bm{x}_t\bm{W_x^{\left(o\right)}}+\bm{h}_{t-1}\bm{W_h^{\left(o\right)}}+\bm{b^{\left(o\right)}}\right)
     $$
-  隠れ状態$\bm{h}_t$は，$\odot$をアダマール積として
-  $$
-  \bm{h}_t=\bm{o}\odot\tanh\left(\bm{c}_t\right)
-  $$
+    隠れ状態$\bm{h}_t$は，$\odot$をアダマール積として
+    $$
+    \bm{h}_t=\bm{o}\odot\tanh\left(\bm{c}_t\right)
+    $$
   - **forget ゲート**: $\bm{c}_{t-1}$の記憶から不要な記憶を忘れるためのゲート
     出力$\bm{f}$は
     $$
@@ -28,7 +28,7 @@
     $$
     \bm{g}=\tanh\left(\bm{x}_t\bm{W_x^{\left(g\right)}}+\bm{h}_{t-1}\bm{W_h^{\left(g\right)}}+\bm{b^{\left(g\right)}}\right)
     $$
-  - **inputゲート**: $\bm{g}$の各要素が新たに追加する情報としてどれだけ価値があるかを判断するゲート
+  - **input ゲート**: $\bm{g}$の各要素が新たに追加する情報としてどれだけ価値があるかを判断するゲート
     $$
     \bm{i}=\sigma\left(\bm{x}_t\bm{W_x^{\left(i\right)}}+\bm{h}_{t-1}\bm{W_h^{\left(i\right)}}+\bm{b^{\left(i\right)}}\right)
     $$
@@ -36,3 +36,10 @@
     $$
     \bm{c}_t=\bm{f}\odot\bm{c}_{t-1}+\bm{g}\odot\bm{i}
     $$
+- 改善点
+  - LSTM レイヤを多層化する(2~4 程度)
+  - **過学習**の抑制
+    - Dropout のレイヤを時間方向ではなく深さ方向に挿入する(時間方向に挿入すると，時間が進むのに比例してノイズが蓄積することになるため)
+    - 時間方向の正則化を目的としたものとして，変分 Dropout などがある
+      - これは同じ階層にある Dropout ではマスクを共有する
+  - **重み共有**: Embedding レイヤの重みと Affine レイヤの重みを共有する(ただしサイズが異なるので転置を取る)

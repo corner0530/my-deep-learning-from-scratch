@@ -209,12 +209,14 @@ class RnnlmTrainer:
                     inputs, labels, batch_size, time_size
                 )
 
-                # 勾配を求めてパラメータを更新
+                # 勾配を求める
                 loss = model.forward(batch_input, batch_label)
                 model.backward()
                 params, grads = remove_duplicate(model.params, model.grads)
                 if max_grad is not None:
+                    # 勾配クリッピング
                     clip_grads(grads, max_grad)
+                # パラメータを更新
                 optimizer.update(params, grads)
                 total_loss += loss
                 loss_count += 1

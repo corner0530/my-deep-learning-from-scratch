@@ -15,7 +15,10 @@ Attributes:
     analogy (function): 類推問題を解く
     normalize (function): 単語ベクトルの正規化
     clip_grads (function): 勾配のクリッピング
+    eval_perplexity (function): パープレキシティの評価
 """
+import sys
+
 from common.np import np  # import numpy as np
 
 
@@ -389,3 +392,45 @@ def clip_grads(grads, max_norm):
     if rate < 1:
         for grad in grads:
             grad *= rate
+
+
+def eval_perplexity(model, corpus, batch_size=10, time_size=35):
+    """パープレキシティの評価
+
+    Args:
+        model (RNNLM): 言語モデル
+        corpus (ndarray): コーパス
+        batch_size (int, optional): バッチサイズ
+        time_size (int, optional): 時間軸のサイズ
+
+    Returns:
+        float: パープレキシティ
+    """
+    print("evaluating perplexity ...")
+    corpus_size = len(corpus)
+    total_loss = 0
+    max_iters = (corpus_size - 1) // (batch_size * time_size)
+    jump = (corpus_size - 1) // batch_size
+
+    for iters in range(max_iters):
+        inputs = np.zeros((batch_size, time_size), dtype=np.int32)
+        labels = np.zeros((batch_size, time_size), dtype=np.int32)
+        time_offset = iters * time_size
+        offsets = [time_offset + (i * jump) for i in range(batch_size)]
+        for time in range(time_size):
+            for i, offset in enumerate(offsets):
+                inputs[i, time] = corpus[(offset + time) % corpus_size]
+                labels[i, time] = corpus[(offset + time + 1) % corpus_size]
+
+        try:
+            loss = model.forward(inputs, labels, train_flg=False)
+        except TypeError:
+            loss = model.forward(inputs, labels)
+        total_loss += loss
+
+        sys.stdout.write("\r%d / %d" % (iters, max_iters))
+        sys.stdout.flush()
+
+    print("")
+    ppl = np.exp(total_loss / max_iters)
+    return ppl

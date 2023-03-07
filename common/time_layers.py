@@ -6,6 +6,7 @@ Attributes:
     TimeEmbedding (class): 時系列版Embeddingレイヤ
     TimeAffine (class): 時系列版Affineレイヤ
     TimeSoftmaxWithLoss (class): 時系列版SoftmaxWithLossレイヤ
+    TimeDropout (class): 時系列版Dropoutレイヤ
 """
 from common.functions import sigmoid, softmax
 from common.layers import Embedding
@@ -538,6 +539,7 @@ class TimeLSTM:
         dhidden (ndarray): 隠れ状態の勾配
         stateful (bool): 隠れ状態を維持するかどうか
     """
+
     def __init__(self, weight_in, weight_hid, bias, stateful=False):
         """コンストラクタ
 
@@ -640,3 +642,55 @@ class TimeLSTM:
         """隠れ状態・セル状態をリセット"""
         self.hidden = None
         self.cell = None
+
+
+class TimeDropout:
+    """TimeDropoutレイヤ
+
+    Attributes:
+        params (list): パラメータ
+        grads (list): 勾配
+        dropout_ratio (float): ドロップアウトの割合
+        mask (ndarray): マスク
+        train_flg (bool): 学習フラグ
+    """
+    def __init__(self, dropout_ratio=0.5):
+        """コンストラクタ
+
+        Args:
+            dropout_ratio (float, optional): ドロップアウトの割合
+        """
+        self.params = []
+        self.grads = []
+        self.dropout_ratio = dropout_ratio
+        self.mask = None
+        self.train_flg = True
+
+    def forward(self, inputs):
+        """順伝播
+
+        Args:
+            inputs (ndarray): 入力
+
+        Returns:
+            ndarray: 出力
+        """
+        if self.train_flg:
+            flg = np.random.rand(*inputs.shape) > self.dropout_ratio
+            scale = 1 / (1.0 - self.dropout_ratio)
+            self.mask = flg.astype(np.float32) * scale
+
+            return inputs * self.mask
+        else:
+            return inputs
+
+    def backward(self, dout):
+        """逆伝播
+
+        Args:
+            dout (ndarray): 次レイヤからの勾配
+
+        Returns:
+            ndarray: 前レイヤへの勾配
+        """
+        return dout * self.mask

@@ -7,7 +7,7 @@ Attributes:
     TimeAffine (class): 時系列版Affineレイヤ
     TimeSoftmaxWithLoss (class): 時系列版SoftmaxWithLossレイヤ
 """
-from common.functions import softmax
+from common.functions import sigmoid, softmax
 from common.layers import Embedding
 from common.np import np
 
@@ -396,3 +396,247 @@ class TimeSoftmaxWithLoss:
         dinput = dinput.reshape((batch_size, times, value_size))
 
         return dinput
+
+
+class LSTM:
+    """LSTMレイヤ
+
+    Attributes:
+        params (list): パラメータ
+        grads (list): 勾配
+        cache (list): 中間データ
+    """
+
+    def __init__(self, weight_in, weight_hid, bias):
+        """コンストラクタ
+
+        Args:
+            weight_x (ndarray): 入力に対する重み
+            weight_h (ndarray): 隠れ状態に対する重み
+            bias (ndarray): バイアス
+        """
+        self.params = [weight_in, weight_hid, bias]
+        self.grads = [
+            np.zeros_like(weight_in),
+            np.zeros_like(weight_hid),
+            np.zeros_like(bias),
+        ]
+        self.cache = None
+
+    def forward(self, inputs, hidden_prev, cell_prev):
+        """順伝播
+
+        Args:
+            inputs (ndarray): 入力
+            hidden_prev (ndarray): 前時刻の隠れ状態
+            cell_prev (ndarray): 前時刻のセル状態
+
+        Returns:
+            ndarray: 隠れ状態,
+            ndarray: セル状態
+        """
+        weight_in, weight_hid, bias = self.params
+        batch_num, hidden_dim = hidden_prev.shape
+
+        # 4つのパラメータを一括でアフィン返還
+        affine = np.dot(inputs, weight_in) + np.dot(hidden_prev, weight_hid) + bias
+
+        # slice
+        forget = affine[:, :hidden_dim]
+        new_cell = affine[:, hidden_dim : 2 * hidden_dim]
+        input = affine[:, 2 * hidden_dim : 3 * hidden_dim]
+        output = affine[:, 3 * hidden_dim :]
+
+        forget = sigmoid(forget)
+        new_cell = np.tanh(new_cell)
+        input = sigmoid(input)
+        output = sigmoid(output)
+
+        cell_next = forget * cell_prev + new_cell * input
+        hidden_next = output * np.tanh(cell_next)
+
+        self.cache = (
+            inputs,
+            hidden_prev,
+            cell_prev,
+            input,
+            forget,
+            new_cell,
+            output,
+            cell_next,
+        )
+        return hidden_next, cell_next
+
+    def backward(self, dhidden_next, dcell_next):
+        """逆伝播
+
+        Args:
+            dhidden_next (ndarray): 次時刻の隠れ状態の勾配
+            dcell_next (ndarray): 次時刻のセル状態の勾配
+
+        Returns:
+            ndarray: 入力の勾配
+            ndarray: 隠れ状態の勾配
+            ndarray: セル状態の勾配
+        """
+        weight_in, weight_hid, bias = self.params
+        (
+            inputs,
+            hidden_prev,
+            cell_prev,
+            input,
+            forget,
+            new_cell,
+            output,
+            cell_next,
+        ) = self.cache
+
+        tanh_cell_next = np.tanh(cell_next)
+
+        dsum = dcell_next + (dhidden_next * output) * (
+            1 - tanh_cell_next * tanh_cell_next
+        )
+
+        dcell_prev = dsum * forget
+
+        dinput = dsum * new_cell
+        dforget = dsum * cell_prev
+        doutput = dhidden_next * tanh_cell_next
+        dnew_cell = dsum * input
+
+        dinput *= input * (1 - input)
+        dforget *= forget * (1 - forget)
+        doutput *= output * (1 - output)
+        dnew_cell *= 1 - new_cell * new_cell
+
+        # 横方向に連結
+        daffine = np.hstack((dforget, dnew_cell, dinput, doutput))
+
+        dweight_hid = np.dot(hidden_prev.T, daffine)
+        dweight_in = np.dot(inputs.T, daffine)
+        dbias = np.sum(daffine, axis=0)
+
+        self.grads[0][...] = dweight_in
+        self.grads[1][...] = dweight_hid
+        self.grads[2][...] = dbias
+
+        din = np.dot(daffine, weight_in.T)
+        dhidden_prev = np.dot(daffine, weight_hid.T)
+
+        return din, dhidden_prev, dcell_prev
+
+
+class TimeLSTM:
+    """TimeLSTMレイヤ
+
+    Attributes:
+        params (list): パラメータ
+        grads (list): 勾配
+        layers (list): LSTMレイヤのリスト
+        hidden (ndarray): 隠れ状態
+        cell (ndarray): セル状態
+        dhidden (ndarray): 隠れ状態の勾配
+        stateful (bool): 隠れ状態を維持するかどうか
+    """
+    def __init__(self, weight_in, weight_hid, bias, stateful=False):
+        """コンストラクタ
+
+        Args:
+            weight_in (ndarray): 入力に対する重み
+            weight_hid (ndarray): 隠れ状態に対する重み
+            bias (ndarray): バイアス
+            stateful (bool, optional): 隠れ状態を維持するかどうか
+        """
+        self.params = [weight_in, weight_hid, bias]
+        self.grads = [
+            np.zeros_like(weight_in),
+            np.zeros_like(weight_hid),
+            np.zeros_like(bias),
+        ]
+        self.layers = None
+
+        self.hidden = None
+        self.cell = None
+        self.dhidden = None
+        self.stateful = stateful
+
+    def forward(self, inputs):
+        """順伝播
+
+        Args:
+            inputs (ndarray): 入力
+
+        Returns:
+            ndarray: 隠れ状態
+        """
+        weight_in, weight_hid, bias = self.params
+        batch_num, times, input_dim = inputs.shape
+        hidden_dim = weight_hid.shape[0]
+
+        self.layers = []
+        hiddens = np.empty((batch_num, times, hidden_dim), dtype="f")
+
+        if not self.stateful or self.hidden is None:
+            self.hidden = np.zeros((batch_num, hidden_dim), dtype="f")
+        if not self.stateful or self.cell is None:
+            self.cell = np.zeros((batch_num, hidden_dim), dtype="f")
+
+        for time in range(times):
+            layer = LSTM(*self.params)
+            self.hidden, self.cell = layer.forward(
+                inputs[:, time, :], self.hidden, self.cell
+            )
+            hiddens[:, time, :] = self.hidden
+
+            self.layers.append(layer)
+
+        return hiddens
+
+    def backward(self, dhiddens):
+        """逆伝播
+
+        Args:
+            dhiddens (ndarray): 次時刻の隠れ状態の勾配
+
+        Returns:
+            ndarray: 入力の勾配
+        """
+        weight_in, weight_hid, bias = self.params
+        batch_num, times, hidden_dim = dhiddens.shape
+        input_dim = weight_in.shape[0]
+
+        dinputs = np.empty((batch_num, times, input_dim), dtype="f")
+        dhidden = 0
+        dcell = 0
+
+        grads = [0, 0, 0]
+        for time in reversed(range(times)):
+            layer = self.layers[time]
+            dinput, dhidden, dcell = layer.backward(
+                dhiddens[:, time, :] + dhidden, dcell
+            )
+            dinputs[:, time, :] = dinput
+            for i, grad in enumerate(layer.grads):
+                grads[i] += grad
+
+        for i, grad in enumerate(grads):
+            self.grads[i][...] = grad
+
+        self.dhidden = dhidden
+        return dinputs
+
+    def set_state(self, hidden, cell=None):
+        """隠れ状態・セル状態を設定
+
+        Args:
+            hidden (ndarray): 隠れ状態
+            cell (ndarray, optional): セル状態
+
+        """
+        self.hidden = hidden
+        self.cell = cell
+
+    def reset_state(self):
+        """隠れ状態・セル状態をリセット"""
+        self.hidden = None
+        self.cell = None

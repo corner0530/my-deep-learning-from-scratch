@@ -6,3 +6,6 @@ __pycache__
 *.txt
 
 hoge.py
+
+# dataset
+!dataset/addition.txt

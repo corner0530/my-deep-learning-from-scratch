@@ -43,3 +43,23 @@
     - 時間方向の正則化を目的としたものとして，変分 Dropout などがある
       - これは同じ階層にある Dropout ではマスクを共有する
   - **重み共有**: Embedding レイヤの重みと Affine レイヤの重みを共有する(ただしサイズが異なるので転置を取る)
+
+## 付録より
+
+- **GRU**: ゲート付き RNN の 1 つ．記憶セルを削減し，計算時間を短縮している
+  - **update ゲート**: 隠れ状態を更新するゲート
+    $$
+    \bm{z}=\sigma\left(\bm{x}_t\bm{W_x^{\left(z\right)}}+\bm{h}_{t-1}\bm{W_h^{\left(z\right)}}+\bm{b^{\left(z\right)}}\right)
+    $$
+  - **reset ゲート**: 過去の隠れ状態をどれだけ無視するかを決定する
+    $$
+    \bm{r}=\sigma\left(\bm{x}_t\bm{W_x^{\left(r\right)}}+\bm{h}_{t-1}\bm{W_h^{\left(r\right)}}+\bm{b^{\left(r\right)}}\right)
+    $$
+  - 新しい隠れ状態
+    $$
+    \bm{\tilde{h}}=\tanh\left(\bm{x}_t\bm{W_x}+\left(\bm{r}\odot\bm{h}_{t-1}\right)\bm{W_h}+\bm{b}\right)
+    $$
+  - 隠れ状態
+    $$
+    \bm{h}_t=\left(1-\bm{z}\right)\odot\bm{h}_{t-1}+\bm{z}\odot\bm{\tilde{h}}
+    $$

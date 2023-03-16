@@ -12,6 +12,9 @@ Attributes:
     MatMul (class): MatMulレイヤ
     Embedding (class): Embeddingレイヤ
     SigmoidWithLoss (class): Sigmoid-with-Lossレイヤ
+
+TODO:
+    Softmax
 """
 from common.functions import cross_entropy_error, sigmoid, softmax
 from common.np import GPU, np  # import numpy as np

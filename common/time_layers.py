@@ -6,7 +6,15 @@ Attributes:
     TimeEmbedding (class): 時系列版Embeddingレイヤ
     TimeAffine (class): 時系列版Affineレイヤ
     TimeSoftmaxWithLoss (class): 時系列版SoftmaxWithLossレイヤ
+    LSTM (class): LSTMレイヤ
+    TimeLSTM (class): 時系列版LSTMレイヤ
     TimeDropout (class): 時系列版Dropoutレイヤ
+    GRU (class): GRUレイヤ
+    TimeGRU (class): 時系列版GRUレイヤ
+
+TODO:
+    TimeBiLSTM ?
+    TimeSigmoidWithLoss ?
 """
 from common.functions import sigmoid, softmax
 from common.layers import Embedding
@@ -654,6 +662,7 @@ class TimeDropout:
         mask (ndarray): マスク
         train_flg (bool): 学習フラグ
     """
+
     def __init__(self, dropout_ratio=0.5):
         """コンストラクタ
 
@@ -694,3 +703,238 @@ class TimeDropout:
             ndarray: 前レイヤへの勾配
         """
         return dout * self.mask
+
+
+class GRU:
+    """GRUレイヤ
+
+    Attributes:
+        params (list): パラメータ
+        grads (list): 勾配
+        cache (list): 中間データ
+    """
+
+    def __init__(self, weight_in, weight_hidden, bias):
+        """コンストラクタ
+
+        Args:
+            weight_in (ndarray): 入力に対する重み
+            weight_hidden (ndarray): 隠れ状態に対する重み
+            bias (ndarray): バイアス
+        """
+        self.params = [weight_in, weight_hidden, bias]
+        self.grads = [
+            np.zeros_like(weight_in),
+            np.zeros_like(weight_hidden),
+            np.zeros_like(bias),
+        ]
+        self.cache = None
+
+    def forward(self, input, hidden_prev):
+        """順伝播
+
+        Args:
+            input (ndarray): 入力
+            hidden_prev (ndarray): 前時刻の隠れ状態
+
+        Returns:
+            ndarray: 隠れ状態
+        """
+        weight_in, weight_hidden, bias = self.params
+        hidden_size = weight_hidden.shape[0]
+        weight_in_update = weight_in[:, :hidden_size]
+        weight_in_reset = weight_in[:, hidden_size : 2 * hidden_size]
+        weight_in_hidden = weight_in[:, 2 * hidden_size :]
+        weight_hidden_update = weight_hidden[:, :hidden_size]
+        weight_hidden_reset = weight_hidden[:, hidden_size : 2 * hidden_size]
+        weight_hidden_hidden = weight_hidden[:, 2 * hidden_size :]
+        bias_update = bias[:hidden_size]
+        bias_reset = bias[hidden_size : 2 * hidden_size]
+        bias_hidden = bias[2 * hidden_size :]
+
+        update = sigmoid(
+            np.dot(input, weight_in_update)
+            + np.dot(hidden_prev, weight_hidden_update)
+            + bias_update
+        )
+        reset = sigmoid(
+            np.dot(input, weight_in_reset)
+            + np.dot(hidden_prev, weight_hidden_reset)
+            + bias_reset
+        )
+        hidden_hat = np.tanh(
+            np.dot(input, weight_in_hidden)
+            + np.dot(reset * hidden_prev, weight_hidden_hidden)
+            + bias_hidden
+        )
+        hidden_next = (1 - update) * hidden_prev + update * hidden_hat
+
+        self.cache = (input, hidden_prev, update, reset, hidden_hat)
+
+        return hidden_next
+
+    def backward(self, dhidden_next):
+        """逆伝播
+
+        Args:
+            dhidden_next (ndarray): 次レイヤからの勾配
+
+        Returns:
+            ndarray: 前レイヤへの勾配
+        """
+        weight_in, weight_hidden, bias = self.params
+        hidden_size = weight_hidden.shape[0]
+        weight_in_update = weight_in[:, :hidden_size]
+        weight_in_reset = weight_in[:, hidden_size : 2 * hidden_size]
+        weight_in_hidden = weight_in[:, 2 * hidden_size :]
+        weight_hidden_update = weight_hidden[:, :hidden_size]
+        weight_hidden_reset = weight_hidden[:, hidden_size : 2 * hidden_size]
+        weight_hidden_hidden = weight_hidden[:, 2 * hidden_size :]
+        input, hidden_prev, update, reset, hidden_hat = self.cache
+
+        dhidden_hat = dhidden_next * update
+        dhidden_prev = dhidden_next * (1 - update)
+
+        # tanh
+        dt = dhidden_hat * (1 - hidden_hat * hidden_hat)
+        dbias_hidden = np.sum(dt, axis=0)
+        dweight_hidden_hidden = np.dot((reset * hidden_prev).T, dt)
+        dhidden_reset = np.dot(dt, weight_hidden_hidden.T)
+        dweight_in_hidden = np.dot(input.T, dt)
+        din = np.dot(dt, weight_in_hidden.T)
+        dhidden_prev += reset * dhidden_reset
+
+        # update gate
+        dupdate = dhidden_next * hidden_hat - dhidden_next * hidden_prev
+        dt = dupdate * update * (1 - update)
+        dbias_update = np.sum(dt, axis=0)
+        dweight_hidden_update = np.dot(hidden_prev.T, dt)
+        dhidden_prev += np.dot(dt, weight_hidden_update.T)
+        dweight_in_update = np.dot(input.T, dt)
+        din += np.dot(dt, weight_in_update.T)
+
+        # reset gate
+        dreset = dhidden_reset * hidden_prev
+        dt = dreset * reset * (1 - reset)
+        dbias_reset = np.sum(dt, axis=0)
+        dweight_hidden_reset = np.dot(hidden_prev.T, dt)
+        dhidden_prev += np.dot(dt, weight_hidden_reset.T)
+        dweight_in_reset = np.dot(input.T, dt)
+        din += np.dot(dt, weight_in_reset.T)
+
+        self.dweight_in = np.hstack(
+            (dweight_in_update, dweight_in_reset, dweight_in_hidden)
+        )
+        self.dweight_hidden = np.hstack(
+            (dweight_hidden_update, dweight_hidden_reset, dweight_hidden_hidden)
+        )
+        self.dbias = np.hstack((dbias_update, dbias_reset, dbias_hidden))
+
+        self.grads[0][...] = self.dweight_in
+        self.grads[1][...] = self.dweight_hidden
+        self.grads[2][...] = self.dbias
+
+        return din, dhidden_prev
+
+
+class TimeGRU:
+    """TimeGRUレイヤ
+
+    Attributes:
+        params (list): パラメータ
+        grads (list): 勾配
+        layers (list): GRUレイヤのリスト
+        hidden (ndarray): 隠れ状態
+        dhidden (ndarray): 勾配
+        stateful (bool): 隠れ状態を維持するかどうか
+    """
+
+    def __init__(self, weight_in, weight_hidden, bias, stateful=False):
+        """コンストラクタ
+
+        Args:
+            weight_in (ndarray): 入力に対する重み
+            weight_hidden (ndarray): 隠れ状態に対する重み
+            bias (ndarray): バイアス
+            stateful (bool, optional): 隠れ状態を維持するかどうか
+        """
+        self.params = [weight_in, weight_hidden, bias]
+        self.grads = [
+            np.zeros_like(weight_in),
+            np.zeros_like(weight_hidden),
+            np.zeros_like(bias),
+        ]
+        self.layers = None
+        self.hidden = None
+        self.dhidden = None
+        self.stateful = stateful
+
+    def forward(self, inputs):
+        """順伝播
+
+        Args:
+            inputs (ndarray): 入力
+
+        Returns:
+            ndarray: 最後の時刻の隠れ状態
+        """
+        weight_in, weight_hidden, bias = self.params
+        batch_num, times, input_dim = inputs.shape
+        hidden_size = weight_hidden.shape[0]
+
+        self.layers = []
+        hiddens = np.empty((batch_num, times, hidden_size), dtype="f")
+
+        if not self.stateful or self.hidden is None:
+            self.hidden = np.zeros((batch_num, hidden_size), dtype="f")
+
+        for time in range(times):
+            layer = GRU(*self.params)
+            self.hidden = layer.forward(inputs[:, time, :], self.hidden)
+            hiddens[:, time, :] = self.hidden
+            self.layers.append(layer)
+
+        return hiddens
+
+    def backward(self, dhiddens):
+        """逆伝播
+
+        Args:
+            dhiddens (ndarray): 隠れ状態に対する勾配
+
+        Returns:
+            ndarray: 入力に対する勾配
+        """
+        weight_in, weight_hidden, bias = self.params
+        batch_num, times, hidden_size = dhiddens.shape
+        input_dim = weight_in.shape[0]
+
+        dinputs = np.empty((batch_num, times, input_dim), dtype="f")
+        dhidden = 0
+        grads = [0, 0, 0]
+
+        for time in reversed(range(times)):
+            layer = self.layers[time]
+            dinput, dhidden = layer.backward(dhiddens[:, time, :] + dhidden)
+            dinputs[:, time, :] = dinput
+
+            for i, grad in enumerate(layer.grads):
+                grads[i] += grad
+
+        for i, grad in enumerate(grads):
+            self.grads[i][...] = grad
+
+        self.dhidden = dhidden
+        return dinputs
+
+    def set_state(self, hidden):
+        """隠れ状態を設定
+
+        Args:
+            hidden (ndarray): 隠れ状態
+        """
+        self.hidden = hidden
+
+    def reset_state(self):
+        """隠れ状態をリセット"""
+        self.hidden = None

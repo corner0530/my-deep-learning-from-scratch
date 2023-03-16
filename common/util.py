@@ -16,7 +16,12 @@ Attributes:
     normalize (function): 単語ベクトルの正規化
     clip_grads (function): 勾配のクリッピング
     eval_perplexity (function): パープレキシティの評価
+    eval_seq2seq (function): seq2seqモデルの評価
+
+TODO:
+    normalize
 """
+import os
 import sys
 
 from common.np import np  # import numpy as np
@@ -434,3 +439,53 @@ def eval_perplexity(model, corpus, batch_size=10, time_size=35):
     print("")
     ppl = np.exp(total_loss / max_iters)
     return ppl
+
+
+def eval_seq2seq(model, question, correct, id_to_char, verbose=False, is_reverse=False):
+    """seq2seqモデルの評価
+
+    Args:
+        model (seq2seq): seq2seqモデル
+        question (list): 問題文(文字IDの配列)
+        correct (list): 正解
+        id_to_char (dict): IDから文字へのディクショナリ
+        verbose (bool, optional): 結果を表示するかどうか
+        is_reverse (bool, optional): 入力文を逆順にするかどうか
+
+    Returns:
+        int: モデルの足す答えが合っていれば1，間違っていれば0
+    """
+    correct = correct.flatten()
+    # 頭の区切り文字
+    start_id = correct[0]
+    correct = correct[1:]
+    guess = model.generate(question, start_id, len(correct))
+
+    # 文字列へ変換
+    question = "".join([id_to_char[int(c)] for c in question.flatten()])
+    correct = "".join([id_to_char[int(c)] for c in correct])
+    guess = "".join([id_to_char[int(c)] for c in guess])
+
+    if verbose:
+        if is_reverse:
+            question = question[::-1]
+
+        colors = {"ok": "\033[92m", "fail": "\033[91m", "close": "\033[0m"}
+        print("Q", question)
+        print("T", correct)
+
+        is_windows = os.name == "nt"
+
+        if correct == guess:
+            mark = colors["ok"] + "☑" + colors["close"]
+            if is_windows:
+                mark = "O"
+            print(mark + " " + guess)
+        else:
+            mark = colors["fail"] + "☒" + colors["close"]
+            if is_windows:
+                mark = "X"
+            print(mark + " " + guess)
+        print("---")
+
+    return 1 if guess == correct else 0

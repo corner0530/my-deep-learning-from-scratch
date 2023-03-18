@@ -12,9 +12,7 @@ Attributes:
     MatMul (class): MatMulレイヤ
     Embedding (class): Embeddingレイヤ
     SigmoidWithLoss (class): Sigmoid-with-Lossレイヤ
-
-TODO:
-    Softmax
+    Softmax (class): Softmaxレイヤ
 """
 from common.functions import cross_entropy_error, sigmoid, softmax
 from common.np import GPU, np  # import numpy as np
@@ -781,4 +779,46 @@ class SigmoidWithLoss:
         batch_size = self.labels.shape[0]
 
         din = (self.sigmoid_out - self.labels) * dout / batch_size
+        return din
+
+
+class Softmax:
+    """ソフトマックス関数のレイヤ
+
+    Attributes:
+        params (list): パラメータ
+        grads (list): 勾配
+        out (ndarray): ソフトマックス関数の出力
+    """
+
+    def __init__(self):
+        """コンストラクタ"""
+        self.params = []
+        self.grads = []
+        self.out = None
+
+    def forward(self, input):
+        """順伝播
+
+        Args:
+            input (ndarray): 入力
+
+        Returns:
+            ndarray: 出力
+        """
+        self.out = softmax(input)
+        return self.out
+
+    def backward(self, dout):
+        """逆伝播
+
+        Args:
+            dout (ndarray): 上流から伝わってきた勾配
+
+        Returns:
+            ndarray: 下流に伝える勾配
+        """
+        din = self.out * dout
+        sum_din = np.sum(din, axis=1, keepdims=True)
+        din -= self.out * sum_din
         return din

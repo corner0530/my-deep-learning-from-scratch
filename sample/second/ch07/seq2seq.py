@@ -12,7 +12,7 @@ class Encoder:
         lstm (TimeLSTM): LSTMレイヤ
         params (list): 重みパラメータのリスト
         grads (list): 勾配のリスト
-        hiddens (ndarray): 隠れ状態のリスト
+        hiddens (ndarray): 隠れ状態の配列
     """
 
     def __init__(self, vocab_size, wordvec_size, hidden_size):

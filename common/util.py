@@ -17,9 +17,6 @@ Attributes:
     clip_grads (function): 勾配のクリッピング
     eval_perplexity (function): パープレキシティの評価
     eval_seq2seq (function): seq2seqモデルの評価
-
-TODO:
-    normalize
 """
 import os
 import sys

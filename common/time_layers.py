@@ -11,13 +11,11 @@ Attributes:
     TimeDropout (class): 時系列版Dropoutレイヤ
     GRU (class): GRUレイヤ
     TimeGRU (class): 時系列版GRUレイヤ
-
-TODO:
-    TimeBiLSTM ?
-    TimeSigmoidWithLoss ?
+    TimeBiLSTM (class): 時系列版双方向LSTMレイヤ
+    TimeSigmoidWithLoss (class): 時系列版SigmoidWithLossレイヤ
 """
 from common.functions import sigmoid, softmax
-from common.layers import Embedding
+from common.layers import Embedding, SigmoidWithLoss
 from common.np import np
 
 
@@ -938,3 +936,136 @@ class TimeGRU:
     def reset_state(self):
         """隠れ状態をリセット"""
         self.hidden = None
+
+
+class TimeBiLSTM:
+    """TimeBiLSTMレイヤ
+
+    Attributes:
+        forward_lstm (TimeLSTM): 順伝播用LSTMレイヤ
+        backward_lstm (TimeLSTM): 逆伝播用LSTMレイヤ
+        params (list): パラメータ
+        grads (list): 勾配
+    """
+
+    def __init__(
+        self,
+        weight_in1,
+        weight_hidden1,
+        bias1,
+        weight_in2,
+        weight_hidden2,
+        bias2,
+        stateful=False,
+    ):
+        """コンストラクタ
+
+        Args:
+            weight_in1 (ndarray): 順伝播用LSTMレイヤの入力に対する重み
+            weight_hidden1 (ndarray): 順伝播用LSTMレイヤの隠れ状態に対する重み
+            bias1 (ndarray): 順伝播用LSTMレイヤのバイアス
+            weight_in2 (ndarray): 逆伝播用LSTMレイヤの入力に対する重み
+            weight_hidden2 (ndarray): 逆伝播用LSTMレイヤの隠れ状態に対する重み
+            bias2 (ndarray): 逆伝播用LSTMレイヤのバイアス
+            stateful (bool, optional): 隠れ状態を維持するかどうか
+        """
+        self.forward_lstm = TimeLSTM(weight_in1, weight_hidden1, bias1, stateful)
+        self.backward_lstm = TimeLSTM(weight_in2, weight_hidden2, bias2, stateful)
+        self.params = self.forward_lstm.params + self.backward_lstm.params
+        self.grads = self.forward_lstm.grads + self.backward_lstm.grads
+
+    def forward(self, inputs):
+        """順伝播
+
+        Args:
+            inputs (ndarray): 入力
+
+        Returns:
+            ndarray: 隠れ状態
+        """
+        out1 = self.forward_lstm.forward(inputs)
+        out2 = self.backward_lstm.forward(inputs[:, ::-1])
+        out2 = out2[:, ::-1]
+
+        out = np.concatenate((out1, out2), axis=2)
+        return out
+
+    def backward(self, dhiddens):
+        """逆伝播
+
+        Args:
+            dhiddens (ndarray): 隠れ状態に対する勾配
+
+        Returns:
+            ndarray: 入力に対する勾配
+        """
+        hidden_size = dhiddens.shape[2] // 2
+        dout1 = dhiddens[:, :, :hidden_size]
+        dout2 = dhiddens[:, :, hidden_size:]
+
+        dinputs1 = self.forward_lstm.backward(dout1)
+        dout2 = dout2[:, ::-1]
+        dinputs2 = self.backward_lstm.backward(dout2)
+        dinputs2 = dinputs2[:, ::-1]
+        dinputs = dinputs1 + dinputs2
+        return dinputs
+
+
+class TimeSigmoidWithLoss:
+    """TimeSigmoidWithLossレイヤ
+
+    Attributes:
+        params (list): パラメータ
+        grads (list): 勾配
+        inputs_shape (tuple): 入力の形状
+        layers (list): SigmoidWithLossレイヤのリスト
+    """
+
+    def __init__(self):
+        """コンストラクタ"""
+        self.params = []
+        self.grads = []
+        self.inputs_shape = None
+        self.layers = None
+
+    def forward(self, inputs, labels):
+        """順伝播
+
+        Args:
+            inputs (ndarray): 入力
+            labels (ndarray): 教師データ
+
+        Returns:
+            float: 損失
+        """
+        batch_num, times = inputs.shape
+        self.inputs_shape = inputs.shape
+
+        self.layers = []
+        loss = 0
+
+        for time in range(times):
+            layer = SigmoidWithLoss()
+            loss += layer.forward(inputs[:, time], labels[:, time])
+            self.layers.append(layer)
+
+        return loss / times
+
+    def backward(self, dout=1):
+        """逆伝播
+
+        Args:
+            dout (float, optional): 出力に対する勾配
+
+        Returns:
+            ndarray: 入力に対する勾配
+        """
+        batch_num, times = self.inputs_shape
+        dinputs = np.empty(self.inputs_shape, dtype="f")
+
+        dout *= 1 / times
+        for time in range(times):
+            layer = self.layers[time]
+            dinputs[:, time] = layer.backward(dout)
+
+        return dinputs

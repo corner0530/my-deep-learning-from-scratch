@@ -2,7 +2,7 @@
 
 - 『[ゼロから作る Deep Learning](http://www.oreilly.co.jp/books/9784873117584/)』
 - 『[ゼロから作る Deep Learning ❷ ―自然言語処理編](https://www.oreilly.co.jp/books/9784873118369/)』
-- 『[ゼロから作る Deep Learning ❸ ―フレームワーク編](https://www.oreilly.co.jp/books/9784873119069/)』については[myDeZero](https://github.com/corner0530/myDeZero)で管理
+- 『[ゼロから作る Deep Learning ❸ ―フレームワーク編](https://www.oreilly.co.jp/books/9784873119069/)』については[my-DeZero](https://github.com/corner0530/my-DeZero)で管理
 
 ## 実装上の注意
 
